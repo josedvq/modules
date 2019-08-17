@@ -16,6 +16,31 @@ from sklearn.svm import LinearSVC
 
 from fisher_vectors.improved_fisher_var import FisherVectorGMM
 
+def extern_compute_fvs_from_bags(ss1, pca, fv_gmm, bags):
+    assert len(bags) > 0
+    assert ss1 is not None
+    assert pca is not None
+    assert fv_gmm is not None
+
+    print('  bags: {:d}'.format(len(bags)))
+
+    # transform the features
+    # bags = [pca.transform(ss1.transform(b)) for b in bags]
+    for i, b in enumerate(bags):
+        if b.size != 0:
+            bags[i] = pca.transform(ss1.transform(b))
+
+    fvs = fv_gmm.predict(bags, normalized=True)
+    fvs = fvs.reshape(((fvs.shape[0], fvs.shape[1] * fvs.shape[2])))
+
+    return fvs
+
+def extern_compute_fvs_from_dataset(ss1, pca, fv_gmm, dataset):
+
+    bags = dataset.get_full_dataset()
+    fvs = extern_compute_fvs_from_bags(ss1, pca, fv_gmm, bags)
+
+    return fvs
 
 class FisherVectors:
     ''' Fisher Vector's implementation.
@@ -92,7 +117,7 @@ class FisherVectors:
                                                 c)
                 scores = svc.decision_function(X_inner_train).reshape(-1, 1)
 
-                np.savetxt('coef/coef_{:.2E}.csv'.format(c), svc.coef_)
+                # np.savetxt('coef/coef_{:.2E}.csv'.format(c), svc.coef_)
 
                 # get training set results
                 proba = lr.predict_proba(scores)
@@ -168,6 +193,22 @@ class FisherVectors:
         D = D[np.random.choice(len(D), num_samples, replace=False), :]
         return D
 
+    def sample_datasets_fast(self, datasets, rate, num_samples):
+        print('  sampling dataset')
+        print('  rate: {:f}'.format(rate))
+
+        samples = list()
+        for i, d in enumerate(datasets):
+            ds_samples = d.sample_lines_fast(rate)
+            print('  sampled {:d} lines from {:s}'.format(len(ds_samples), os.path.basename(d.dt_path)))
+            samples.append(ds_samples)
+
+        D = np.vstack(samples)
+
+        assert len(D) >= num_samples
+        D = D[np.random.choice(len(D), num_samples, replace=False), :]
+        return D
+
     def compute_fvs_from_bags(self, bags):
         assert len(bags) > 0
         assert self.ss1 is not None
@@ -219,6 +260,21 @@ class FisherVectors:
 
         return np.vstack(all_fvs), np.concatenate(all_groups)
 
+    def compute_fvs_from_dataset(self, dataset):
+
+        bags = dataset.get_full_dataset()
+
+        fvs = self.compute_fvs_from_bags(bags)
+
+        return fvs
+
+    def compute_fvs_from_datasets(self, datasets):
+
+        all_fvs = joblib.Parallel(n_jobs=10, verbose=10)(
+            joblib.delayed(extern_compute_fvs_from_dataset)(self.ss1, self.pca, self.fv_gmm, ds) for ds in datasets)
+
+        return all_fvs
+
     def train_fv_gmm(self, X):
         ''' Trains the first stage of the FVs algo, up to the GMM
         '''
@@ -240,6 +296,10 @@ class FisherVectors:
         self.fv_gmm = FisherVectorGMM(n_kernels=self.num_gmm_components).fit(
             X=X, verbose=True)
         print('  trained FV GMM')
+
+    def train_fv_gmm_from_datasets(self, datasets, sample_rate=0.01):
+        X_gmm = self.sample_datasets_fast(datasets, sample_rate, self.num_gmm_samples)
+        self.train_fv_gmm(X_gmm)
 
     def train_fv_gmm_and_compute_fvs(self, X, fvs_path):
         X_gmm = np.vstack(X)
@@ -269,12 +329,16 @@ class FisherVectors:
     def train_svm_and_lr(self, X, Y, G=None, svm_c=None):
         ''' Trains the second stage of the FVs algo, the SVM.
         '''
+        print(X)
+        print(Y)
         self.ss2 = StandardScaler().fit(X)
         X = self.ss2.transform(X)
 
         print('  X.shape: {:s}'.format(str(X.shape)))
         print('  Y.shape: {:s}'.format(str(Y.shape)))
-        print('num_bags: {:d} ({:d} positive)'.format(len(Y), np.sum(Y)))
+        print(X)
+        print(Y)
+        print('num_bags: {:d} ({:d} positive)'.format(len(Y), int(np.sum(Y))))
 
         if svm_c is not None and type(svm_c) == float:
             self.svm, self.lr = self.train_linear_svc(X, Y, svm_c)

@@ -32,6 +32,8 @@ class DtFileDataset(Dataset):
         else:
             raise 'weird type for labels'
 
+        self.num_frames = len(self.labels)
+
         # ll = np.fromstring(get_last_line(dt_path), sep='\t')
         # self.num_frames = ll[0].item()
 
@@ -68,13 +70,22 @@ class DtFileDataset(Dataset):
     def to_dataset_no_bbs(self, fout, lout):
 
         curr_bag = 0
-        while True:
+        frame_num = 0
+        while frame_num < self.num_frames:
 
             try:
+                # get traj from next frame in the file (there might be jumps)
                 frame_num, frame_trajectories = self.get_curr_frame_trajectories()
                 # print('{:d}: {:d}'.format(frame_num, len(frame_trajectories)))
+
+                # add trajectories to bags that contain the frame
+                b = curr_bag
+                while b < len(self.bags) and frame_num in self.bags[b].frames:
+                    self.bags[b].trajectories += frame_trajectories
+                    b += 1
             except StopIteration:
-                break
+                frame_num = self.num_frames
+                frame_trajectories = list()
 
             # output bags if neccesary
             while curr_bag < len(self.bags) and frame_num > max(self.bags[curr_bag].frames):
@@ -84,11 +95,7 @@ class DtFileDataset(Dataset):
                 self.bags[curr_bag] = None
                 curr_bag += 1
 
-            # add trajectories to bags that contain the frame
-            b = curr_bag
-            while b < len(self.bags) and frame_num in self.bags[b].frames:
-                self.bags[b].trajectories += frame_trajectories
-                b += 1
+            
 
     def to_dataset_bbs(self, fout):
         raise 'not implemented'

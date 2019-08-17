@@ -116,25 +116,11 @@ class FisherVectorGMM:
     return self.fit(X, model_dump_path=model_dump_path, verbose=True)
 
 
-  def _predict(self, X, normalized=True):
-    """
-    Computes Fisher Vectors of provided X
-    :param X: features - list of ndarray of shape (n_features, n_feature_dim)
-    :param normalized: boolean that indicates whether the fisher vectors shall be normalized --> improved fisher vector
-    :returns fv: fisher vectors - ndarray of shape (2*n_kernels, n_feature_dim)
-    """
-
-    assert self.fitted, "Model (GMM) must be fitted"
-    assert len(X) > 0
-    assert self.feature_dim == X[0].shape[-1], "Features must have same dimensionality as fitted GMM. {:d} != {:d}".format(self.feature_dim, X[0].shape[-1])
-
-    
-    fisher_vectors = np.empty((len(X),2*self.n_kernels,self.feature_dim))
-
+  def zero_gmm_weights(self):
     # set equal weights to predict likelihood ratio
     self.gmm.weights_ = np.ones(self.n_kernels) / self.n_kernels
 
-    for i,x in enumerate(X):
+  def _predict_single(self, x, normalized=True):
       n_features, n_feature_dim = x.shape
       
       likelihood_ratio = self.gmm.predict_proba(x)#.reshape(X.shape[0], X.shape[1], self.n_kernels) # (n_features, n_kernels)
@@ -158,7 +144,32 @@ class FisherVectorGMM:
 
       fisher_vector[fisher_vector < 10**-4] = 0 # cause of zero vals
 
-      fisher_vectors[i,:,:] = fisher_vector
+      return fisher_vector
+
+  def _predict(self, X, normalized=True):
+    """
+    Computes Fisher Vectors of provided X
+    :param X: features - list of ndarray of shape (n_features, n_feature_dim)
+    :param normalized: boolean that indicates whether the fisher vectors shall be normalized --> improved fisher vector
+    :returns fv: fisher vectors - ndarray of shape (2*n_kernels, n_feature_dim)
+    """
+
+    assert self.fitted, "Model (GMM) must be fitted"
+    assert len(X) > 0
+    assert self.feature_dim == X[0].shape[-1], "Features must have same dimensionality as fitted GMM. {:d} != {:d}".format(self.feature_dim, X[0].shape[-1])
+
+    
+    fisher_vectors = np.empty((len(X),2*self.n_kernels,self.feature_dim))
+
+    self.zero_gmm_weights()
+
+    for i,x in enumerate(X):
+      if x.size == 0:
+        # return zeros if the bag is empty
+        fv = np.zeros((1, 2*self.n_kernels, self.feature_dim))
+      else:
+        fv = self._predict_single(x, normalized)
+      fisher_vectors[i,:,:] = fv
 
     return fisher_vectors
 
