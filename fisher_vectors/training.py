@@ -7,7 +7,7 @@ from sklearn.metrics import roc_auc_score, precision_recall_fscore_support
 from sklearn.model_selection import KFold, GroupKFold, StratifiedKFold
 
 from fisher_vectors.fisher_vectors import FisherVectors
-from helpers.helper_functions import summarize_kfold, print_binary_classification_results, add_to_dict
+from helpers.summarization import summarize_kfold, print_binary_classification_results, add_to_dict, get_split_indices
 
 
 def train_svm(fisher_vectors, X, Y, G, svm_c=None, cv_results_path=None):
@@ -111,10 +111,17 @@ def test_grouped(fvs, test_datasets, test_labels, exp_path):
         X_test = fvs.compute_fvs_from_datasets(test_datasets)
         joblib.dump(X_test, test_fvs_path)
 
+    split_indices = get_split_indices(X_test)
+
     X_test = np.vstack(X_test)
     Y_test = np.concatenate(test_labels)
 
-    return test_svm(fvs, X_test, Y_test)
+    results, proba = test_svm(fvs, X_test, Y_test)
+
+    # split proba
+    proba = np.split(proba, split_indices)
+    
+    return results, proba
 
 def cross_test_grouped(
                datasets,
@@ -131,7 +138,7 @@ def cross_test_grouped(
     cv_split = KFold(n_splits=num_folds,
                          random_state=random_state,
                          shuffle=True).split(datasets)
-    scores = list()
+    scores = [None] * len(datasets)
     results = list()
 
     for f, (train_idxs, test_idxs) in enumerate(cv_split):
@@ -166,6 +173,9 @@ def cross_test_grouped(
         # test
         test_results, test_scores = test_grouped(fvs, test_datasets, test_labels, fold_path)
         add_to_dict(fold_results, test_results, prefix='test')
+        # save scores
+        for subject_idx, subject_scores in zip(test_idxs, test_scores):
+            scores[subject_idx] = subject_scores
 
         fold_results['C'] = fvs.svm.get_params()['C']
         results.append(fold_results)

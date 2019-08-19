@@ -71,3 +71,14 @@ def get_timing(f):
         te = time()
         return result, timedelta(seconds=te-ts)
     return wrap
+
+def get_split_indices(arr):
+    indices = list()
+
+    rsum = 0
+    for a in arr[:-1]:
+        indices.append(len(a) + rsum)
+        rsum += len(a)
+
+    return indices
+
