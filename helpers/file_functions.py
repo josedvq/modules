@@ -12,3 +12,8 @@ def list_files(path):
 
 def get_last_line(path):
 	line = subprocess.check_output(['tail', '-1', path])
+
+def basename_ext(path, extension):
+	filename = os.path.basename(path)
+	chunks = filename.split('.')
+	return '{:s}.{:s}'.format(chunks[0], extension)

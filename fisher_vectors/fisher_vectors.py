@@ -29,6 +29,8 @@ def extern_compute_fvs_from_bags(ss1, pca, fv_gmm, bags):
     for i, b in enumerate(bags):
         if b.size != 0:
             bags[i] = pca.transform(ss1.transform(b))
+        else:
+            bags[i] = np.zeros((0, pca.n_components_))
 
     fvs = fv_gmm.predict(bags, normalized=True)
     fvs = fvs.reshape(((fvs.shape[0], fvs.shape[1] * fvs.shape[2])))
@@ -270,7 +272,7 @@ class FisherVectors:
 
     def compute_fvs_from_datasets(self, datasets):
 
-        all_fvs = joblib.Parallel(n_jobs=10, verbose=10)(
+        all_fvs = joblib.Parallel(n_jobs=4, verbose=10)(
             joblib.delayed(extern_compute_fvs_from_dataset)(self.ss1, self.pca, self.fv_gmm, ds) for ds in datasets)
 
         return all_fvs

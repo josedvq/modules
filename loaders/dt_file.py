@@ -11,8 +11,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from torch.utils.data import Dataset, DataLoader
 
-from bag import Bag
-from helpers.file_functions import list_files, get_last_line
+from dts.bag import Bag
+from helpers.file_functions import list_files, get_last_line, basename_ext, create_dir
 
 class DtFileDataset(Dataset):
     ''' Represents a bag or window. '''
@@ -60,14 +60,15 @@ class DtFileDataset(Dataset):
 
         return frame_num-15, frame_trajectories
 
-    def output_bag(self, fout, lout, curr_bag):
-        self.bags[curr_bag].bag_idx = curr_bag
+    def output_bag(self, fout, lout, iout, curr_bag):
+        self.bags[curr_bag].bag_num = curr_bag
         self.bags[curr_bag].set_labels(self.labels[:,None][self.bags[curr_bag].frames, :])
         self.bags[curr_bag].save_labels(lout)
         self.bags[curr_bag].save_trajectories(fout)
-        print('bag output. id={:d}, trajectories={:d}'.format(curr_bag, len(self.bags[curr_bag].trajectories)))
+        self.bags[curr_bag].save_info(fout)
+        print('bag output. num={:d}, id={:d}, trajectories={:d}'.format(curr_bag, self.bags[curr_bag].bag_idx, len(self.bags[curr_bag].trajectories)))
 
-    def to_dataset_no_bbs(self, fout, lout):
+    def to_dataset_no_bbs(self, fout, lout, iout):
 
         curr_bag = 0
         frame_num = 0
@@ -90,7 +91,7 @@ class DtFileDataset(Dataset):
             # output bags if neccesary
             while curr_bag < len(self.bags) and frame_num > max(self.bags[curr_bag].frames):
                 logging.debug('bag filled')
-                self.output_bag(fout, lout, curr_bag)
+                self.output_bag(fout, lout, iout, curr_bag)
                 
                 self.bags[curr_bag] = None
                 curr_bag += 1
@@ -100,25 +101,27 @@ class DtFileDataset(Dataset):
     def to_dataset_bbs(self, fout):
         raise 'not implemented'
 
-    def to_dataset(self, output_path, labels_path):
+    def to_dataset(self, output_path, labels_path, info_path, gzip=False):
         assert len(self.bags) > 0
-        with open(output_path, 'w') as fout:
-            with open(labels_path, 'w') as lout:
-                if self.bags[0].bbs is None:
-                    self.to_dataset_no_bbs(fout, lout)
-                else:
-                    self.to_dataset_bbs(fout, lout)
+        with open(output_path, 'w') as fout, open(labels_path, 'w') as lout, open(info_path, 'w') as iout:
+            if self.bags[0].bbs is None:
+                self.to_dataset_no_bbs(fout, lout, iout)
+            else:
+                self.to_dataset_bbs(fout, lout)
 
 def create_non_overlaping_bags(window_size, num_frames):
     ini = 0
+    idx = 0
     bags = list()
     while ini + window_size < num_frames - window_size:
         bags.append(Bag(
             frames=range(max(0, ini), min(num_frames, ini + window_size)),
             subject_idx=0,
-            bag_idx=0
+            bag_num=0,
+            bag_idx=idx
         ))
         ini += window_size
+        idx += 1
 
     return bags
 
@@ -142,7 +145,13 @@ def main(args):
     traj_files = list_files(args.input)
     labels = np.loadtxt(args.labels, delimiter=',')
 
+    trajs_path = create_dir(args.output, 'trajectories')
+    labels_path = create_dir(args.output, 'labels')
+    info_path = create_dir(args.output, 'info')
+
     assert len(traj_files) == labels.shape[1]
+
+    random.seed(args.seed)
 
     for subject, traj_file in enumerate(traj_files):
         bags = create_non_overlaping_bags(args.window_size, args.num_frames)
@@ -150,9 +159,10 @@ def main(args):
 
         dataset = DtFileDataset(traj_file, labels[:,subject], bags=bags)
 
-        out_file = os.path.join(args.output, os.path.basename(traj_file))
-        labels_out_file = os.path.join(args.labels_out, os.path.splitext(os.path.basename(traj_file))[0])
-        dataset.to_dataset(out_file, labels_out_file)
+        out_file = os.path.join(trajs_path, basename_ext(traj_file, 'csv'))
+        labels_out_file = os.path.join(labels_path, basename_ext(traj_file, 'csv'))
+        info_out_file = os.path.join(labels_path, basename_ext(traj_file, 'csv'))
+        dataset.to_dataset(out_file, labels_out_file, info_out_file, gzip=args.gzip)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Tests the MILES classifier.')
@@ -160,15 +170,15 @@ if __name__ == '__main__':
     parser.add_argument('--input', required=True,
                         help='input folder with the dense trajectories')
     parser.add_argument('--labels', required=True,
-                        help='input folder with labels')
+                        help='input file with labels')
     parser.add_argument('--output', required=True,
-                        help='output folder for the dataset')
-    parser.add_argument('--labels-out', required=True,
                         help='output folder for the dataset')
 
     parser.add_argument('--num-frames', type=int, default=26400)
     parser.add_argument('--window-size', type=int, default=20)
     parser.add_argument('--sample', type=int, default=200)
+    parser.add_argument('--gzip', action='store_true')
+    parser.add_argument('--seed', type=int, default=22)
 
     parser.add_argument('-d', '--debug', help="Print lots of debugging statements",
                         action="store_const", dest="loglevel", const=logging.DEBUG, default=logging.WARNING)
