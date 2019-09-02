@@ -1,3 +1,7 @@
+from functools import wraps
+from time import time
+from datetime import timedelta
+
 def timing(f):
     @wraps(f)
     def wrap(*args, **kw):

@@ -1,7 +1,3 @@
-from functools import wraps
-from time import time
-from datetime import timedelta
-
 def summarize_kfold(summary, results, index):
     ''' Takes a set of results and produces a summary
     '''
@@ -53,24 +49,7 @@ def print_binary_classification_results(results):
     # print('{: >4}'.format('f1:{:f}'.format(f1[1])))
     # print('{: >4}'.format('supp:{:f}'.format(support[1])))
 
-def timing(f):
-    @wraps(f)
-    def wrap(*args, **kw):
-        ts = time()
-        result = f(*args, **kw)
-        te = time()
-        print('func:{:s} took: {:s}'.format(f.__name__, str(timedelta(seconds=te-ts))))
-        return result
-    return wrap
 
-def get_timing(f):
-    @wraps(f)
-    def wrap(*args, **kw):
-        ts = time()
-        result = f(*args, **kw)
-        te = time()
-        return result, timedelta(seconds=te-ts)
-    return wrap
 
 def get_split_indices(arr):
     indices = list()

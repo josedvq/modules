@@ -65,7 +65,7 @@ class DtFileDataset(Dataset):
         self.bags[curr_bag].set_labels(self.labels[:,None][self.bags[curr_bag].frames, :])
         self.bags[curr_bag].save_labels(lout)
         self.bags[curr_bag].save_trajectories(fout)
-        self.bags[curr_bag].save_info(fout)
+        self.bags[curr_bag].save_info(iout)
         print('bag output. num={:d}, id={:d}, trajectories={:d}'.format(curr_bag, self.bags[curr_bag].bag_idx, len(self.bags[curr_bag].trajectories)))
 
     def to_dataset_no_bbs(self, fout, lout, iout):
@@ -161,7 +161,7 @@ def main(args):
 
         out_file = os.path.join(trajs_path, basename_ext(traj_file, 'csv'))
         labels_out_file = os.path.join(labels_path, basename_ext(traj_file, 'csv'))
-        info_out_file = os.path.join(labels_path, basename_ext(traj_file, 'csv'))
+        info_out_file = os.path.join(info_path, basename_ext(traj_file, 'csv'))
         dataset.to_dataset(out_file, labels_out_file, info_out_file, gzip=args.gzip)
 
 if __name__ == '__main__':

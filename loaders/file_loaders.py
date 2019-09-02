@@ -15,17 +15,17 @@ def load_datasets(folder_path, ds_class, *args, **kwargs):
 
     return datasets
 
-def load_csvs(filenames, cols=None):
+def load_csvs(filenames, *args, **kwargs):
     all_csvs = list()
     for f in filenames:
-        all_csvs.append(np.squeeze(np.loadtxt(f, delimiter=',', usecols=cols)))
+        all_csvs.append(np.squeeze(np.loadtxt(f, *args, **kwargs)))
 
     return all_csvs
 
-def load_csvs_in_path(folder_path, cols=None):
+def load_csvs_in_path(folder_path, *args, **kwargs):
     csv_files = ls_files(folder_path)
 
-    all_csvs = load_csvs(csv_files)
+    all_csvs = load_csvs(csv_files, *args, **kwargs)
 
     return all_csvs, csv_files
 
