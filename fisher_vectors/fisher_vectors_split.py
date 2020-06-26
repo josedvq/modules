@@ -544,7 +544,6 @@ class FisherVectors:
 
     
     # INTERFACE FROM DATASET
-    @profile
     def compute_fvs_from_dataset(self, dataset):
         assert self.ss1 is not None
         assert self.pca is not None
@@ -600,7 +599,6 @@ class FisherVectors:
             self.ss1 = dataset.get_pickled('ss1')
             self.pca = dataset.get_pickled('pca')
             self.fv_gmm = dataset.get_pickled('gmm')
-            num_final_features = self.pca.n_components_
         else:
             # sample for GMM training
             # sample_rate = 1.5 * self.num_gmm_samples / (len(dataset) * 800)
