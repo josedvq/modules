@@ -126,7 +126,11 @@ class FisherVectorGMM:
       likelihood_ratio = self.gmm.predict_proba(x)#.reshape(X.shape[0], X.shape[1], self.n_kernels) # (n_features, n_kernels)
       var = np.diagonal(self.covars, axis1=1, axis2=2)
 
-      norm_dev_from_modes = ((x[:, None, :] - self.means[None, :, :])/ var[None, :, :]) # (n_features, n_kernels, n_feature_dim)
+      # norm_dev_from_modes = ((x[:, None, :] - self.means[None, :, :])/ var[None, :, :]) # (n_features, n_kernels, n_feature_dim)
+      # Decrease the memory usage of this function by a lot
+      norm_dev_from_modes = np.tile(x[:,None,:],(1,self.n_kernels,1))# (n_features, n_kernels, n_featur_dim)
+      np.subtract(norm_dev_from_modes, self.means[None, :, :], out=norm_dev_from_modes)
+      np.divide(norm_dev_from_modes, var[None, :, :], out=norm_dev_from_modes)
 
       # mean deviation
       mean_dev = np.multiply(likelihood_ratio[:,:,None], norm_dev_from_modes).mean(axis=0)#(n_kernels, n_feature_dim)
