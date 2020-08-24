@@ -256,6 +256,8 @@ class FisherVectors:
         cv_results.loc[:, 'mean_test_score'] = sum_test_auc / num_folds
 
         best_cv_run = cv_results.loc[cv_results['mean_test_score'].idxmax()]
+        print('best CV run:')
+        print(best_cv_run)
 
         self.best_c = best_cv_run['C']
         self.scaled_c = self.best_c * ((num_folds - 1) / num_folds)
@@ -312,6 +314,7 @@ class FisherVectors:
             dmaps.append(dmap)
         return MotherDescriptorMap(dmaps)
 
+    
     # INTERFACE FROM DATASET
     def compute_batch(self, batch_num, dataset, output, idxs, fvmap):
 
@@ -350,6 +353,14 @@ class FisherVectors:
         nmap_path = os.path.join(self.tmp_path, 'fvs.dat')
         output = np.memmap(nmap_path, dtype='float64', mode='w+', shape=(len(dataset),len(fvmap)))
         
+        batch_size = 20 # do batch_size fvs at a time
+        examples = range(0, len(dataset))
+        batches = [examples[i:i + batch_size] for i in range(0, len(examples), batch_size)]
+
+        tmp_path = 'tmp'
+        if not os.path.exists(tmp_path):
+            os.mkdir(tmp_path)
+
         with tqdm_joblib(tqdm(desc="Computing FVs", total=len(batches))) as progress_bar:
             joblib.Parallel(n_jobs=4)(joblib.delayed(self.compute_batch)(i, dataset, output, batch, fvmap) for i, batch in enumerate(batches))
 
@@ -377,6 +388,9 @@ class FisherVectors:
 
         print(self.get_fv_map())
         X = self.compute_fvs_from_dataset(dataset)
+
+        if store:
+            dataset.savetxt_intermediate('fvs', X)
 
         return X
 
