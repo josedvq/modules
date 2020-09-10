@@ -317,7 +317,6 @@ class FisherVectors:
     
     # INTERFACE FROM DATASET
     def compute_batch(self, batch_num, dataset, output, idxs, fvmap):
-
         bags = [dataset[i] for i in idxs] # loads examples in memory
         batch_fvs = np.empty((len(idxs), len(fvmap)))
 
@@ -346,9 +345,6 @@ class FisherVectors:
     def compute_fvs_from_dataset(self, dataset):
         assert self.models is not None
 
-        batch_size = 50 # do batch_size fvs at a time
-        examples = range(0, len(dataset))
-        batches = [np.array(examples[i:i + batch_size]) for i in range(0, len(examples), batch_size)]
         fvmap = self.get_fv_map()
         nmap_path = os.path.join(self.tmp_path, 'fvs.dat')
         output = np.memmap(nmap_path, dtype='float64', mode='w+', shape=(len(dataset),len(fvmap)))
@@ -357,16 +353,15 @@ class FisherVectors:
         examples = range(0, len(dataset))
         batches = [examples[i:i + batch_size] for i in range(0, len(examples), batch_size)]
 
-        tmp_path = 'tmp'
-        if not os.path.exists(tmp_path):
-            os.mkdir(tmp_path)
-
         with tqdm_joblib(tqdm(desc="Computing FVs", total=len(batches))) as progress_bar:
-            joblib.Parallel(n_jobs=4)(joblib.delayed(self.compute_batch)(i, dataset, output, batch, fvmap) for i, batch in enumerate(batches))
+            joblib.Parallel(n_jobs=1)(joblib.delayed(self.compute_batch)(i, dataset, output, batch, fvmap) for i, batch in enumerate(batches))
 
         # X = np.empty(output.shape)
         # X[:] = output[:]
         # del output
+        # return X
+        
+        del output
         return np.memmap(nmap_path, dtype='float64', mode='r', shape=(len(dataset),len(fvmap))) # return read-only memmap
 
     def train_fv_gmm_and_compute_fvs_from_dataset(self, dataset, load_models=False):
@@ -377,6 +372,7 @@ class FisherVectors:
             # sample for GMM training
             # sample_rate = 1.5 * self.num_gmm_samples / (len(dataset) * 800)
             if dataset.hastxt_intermediate('samples'):
+                print('  loading dataset samples from disk')
                 X_s = dataset.loadtxt_intermediate('samples')
             else:
                 X_s = dataset.sample(60)
@@ -388,9 +384,6 @@ class FisherVectors:
 
         print(self.get_fv_map())
         X = self.compute_fvs_from_dataset(dataset)
-
-        if store:
-            dataset.savetxt_intermediate('fvs', X)
 
         return X
 
